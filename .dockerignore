@@ -1,0 +1,7 @@
+target/release
+target/x86_64-unknown-linux-musl/build
+target/x86_64-unknown-linux-musl/deps
+target/x86_64-unknown-linux-musl/debug
+target/x86_64-unknown-linux-musl/release/deps
+target/debug
+node_modules/
