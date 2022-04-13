@@ -61,14 +61,29 @@ async fn new_user(_req: Request<State>) -> tide::Result {
 async fn get_all(req: Request<State>) -> tide::Result {
     let params: TrackingGetParams = req.query()?;
 
-    let max_time = Utc::now() - chrono::Duration::hours(25);
-
     let later_than = Utc.timestamp_millis(params.later_than_epoch.unwrap_or(0));
 
-    let rows = sqlx::query("select user_id, lat, lon, altitude, speed, hdop, bearing, ts FROM tracking_points where user_id = $1 and ts > $2 and ts > $3 ORDER BY ts DESC LIMIT $4")
+    let query = "
+       WITH
+          o(ts, c) AS (
+              SELECT ts, (julianday(ts) - julianday(lead(ts) OVER (order BY ts DESC))) * 24 > 5 AS c FROM tracking_points
+              WHERE user_id = $1
+              ORDER BY ts desc
+          ),
+          oo(ts) AS (
+              SELECT tp.ts AS ts FROM tracking_points tp, o WHERE tp.ts = o.ts AND (o.c = 1 OR o.c is NULL)
+              ORDER BY ts DESC LIMIT 1
+       )
+       SELECT user_id, lat, lon, altitude, speed, hdop, bearing, tp.ts speed FROM tracking_points tp, oo
+       WHERE
+         tp.ts >= oo.ts AND
+         tp.ts > $2
+       ORDER BY tp.ts DESC LIMIT $3
+     ";
+
+    let rows = sqlx::query(query)
         .bind(params.user_id.to_string())
         .bind(later_than)
-        .bind(max_time)
         .bind(params.limit.unwrap_or(2000))
         .map(|r| {
             let id_str: String = r.get(0);
