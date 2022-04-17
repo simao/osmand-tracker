@@ -8,10 +8,13 @@ use ulid::Ulid;
 use sqlx::prelude::*;
 use std::str::FromStr;
 use chrono::prelude::*;
+use tera::Tera;
+use tide_tera::prelude::*;
 
 #[derive(Clone, Debug)]
 pub struct State {
     db: SqlitePool,
+    tera: Tera
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -19,6 +22,19 @@ struct TrackingGetParams {
     user_id: Ulid,
     later_than_epoch: Option<i64>,
     limit: Option<i64>,
+}
+
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+struct UserIdGetParams {
+    user_id: Ulid,
+}
+
+
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+struct UserForm {
+    username: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -41,20 +57,21 @@ pub struct TrackingPoint {
 }
 
 // Just generate a valid id, doesn't do anything else
-async fn new_user(_req: Request<State>) -> tide::Result {
+async fn new_user(mut req: Request<State>) -> tide::Result {
     let user_id = Ulid::new();
+    let user: UserForm = req.body_form().await?;
 
-    // Don't even need to save it
-    // sqlx::query("insert into users (id, ts) values ($1, $2)")
-    //     .bind(user_id.to_string())
-    //     .bind(chrono::Utc::now())
-    //     .execute(&req.state().db).await?;
+    sqlx::query("insert into users (id, name, ts) values ($1, $2, $3)")
+        .bind(user_id.to_string())
+        .bind(user.username)
+        .bind(chrono::Utc::now())
+        .execute(&req.state().db).await?;
 
-    let payload = format!("{{\"user_id\": \"{}\"}}", user_id.to_string());
+    let location = format!("show?user_id={}", user_id.to_string());
 
-    let resp = tide::Response::builder(200).body(payload).header("Content-Type", "application/json").build();
+    let resp = tide::Redirect::new(location);
 
-    Ok(resp)
+    Ok(resp.into())
 }
 
 
@@ -65,18 +82,18 @@ async fn get_all(req: Request<State>) -> tide::Result {
 
     let query = "
        WITH
-          o(ts, c) AS (
-              SELECT ts, (julianday(ts) - julianday(lead(ts) OVER (order BY ts DESC))) * 24 > 5 AS c FROM tracking_points
+          ts_with_is_first(ts, is_first_ts) AS (
+              SELECT ts, (julianday(ts) - julianday(lead(ts) OVER (order BY ts DESC))) * 24 > 5 AS is_first_ts FROM tracking_points
               WHERE user_id = $1
               ORDER BY ts desc
           ),
-          oo(ts) AS (
-              SELECT tp.ts AS ts FROM tracking_points tp, o WHERE tp.ts = o.ts AND (o.c = 1 OR o.c is NULL)
+          first_ts_last_trip(ts) AS (
+              SELECT tp.ts AS ts FROM tracking_points tp, ts_with_is_first WHERE tp.ts = ts_with_is_first.ts AND (ts_with_is_first.is_first_ts = 1 OR ts_with_is_first.is_first_ts is NULL)
               ORDER BY ts DESC LIMIT 1
        )
-       SELECT user_id, lat, lon, altitude, speed, hdop, bearing, tp.ts speed FROM tracking_points tp, oo
+       SELECT user_id, lat, lon, altitude, speed, hdop, bearing, tp.ts speed FROM tracking_points tp, first_ts_last_trip
        WHERE
-         tp.ts >= oo.ts AND
+         tp.ts >= first_ts_last_trip.ts AND
          tp.ts > $2
        ORDER BY tp.ts DESC LIMIT $3
      ";
@@ -99,6 +116,20 @@ async fn get_all(req: Request<State>) -> tide::Result {
     res.set_body(tide::Body::from_json(&response)?);
     Ok(res)
 }
+
+async fn show(req: Request<State>) -> tide::Result {
+    let tera = &req.state().tera;
+    let id = req.query::<UserIdGetParams>()?.user_id;
+
+    // TODO: Index?
+    let name: Option<String> = sqlx::query("select name from users where id = $1")
+        .bind(id.to_string())
+        .map(|r| r.get(0))
+        .fetch_optional(&req.state().db).await?;
+
+    tera.render_response("show.html", &tide_tera::context! { "user_id" => id.to_string(), "name" => name })
+}
+
 
 async fn record(req: Request<State>) -> tide::Result {
     let point: TrackingPoint = req.query()?;
@@ -138,8 +169,11 @@ async fn main() -> tide::Result<()> {
     let db_url = std::env::var("DATABASE_URL").unwrap_or("data/osmand-tracker.db".to_string());
     let dev_log = std::env::var("DEV_LOG").unwrap_or("1".to_string());
 
+    let mut tera = Tera::new("dist/templates/**/*")?;
+    tera.autoescape_on(vec!["html"]);
+
     let db_pool = make_db_pool(&db_url).await;
-    let mut app = tide::with_state(State { db: db_pool });
+    let mut app = tide::with_state(State { db: db_pool, tera });
 
     if dev_log == "1" {
         tide::log::start();
@@ -152,6 +186,7 @@ async fn main() -> tide::Result<()> {
     app.at("/").serve_dir("./dist").unwrap();
 
     app.at("/record").get(record);
+    app.at("/show").get(show);
     app.at("/tracking").get(get_all);
     app.at("/users").post(new_user);
 

@@ -1,9 +1,10 @@
 -- PRAGMA foreign_keys = ON;
 
--- CREATE TABLE IF NOT EXISTS users (
--- id TEXT NOT NULL PRIMARY KEY,
--- ts TEXT NOT NULL
--- );
+CREATE TABLE IF NOT EXISTS users (
+id TEXT NOT NULL PRIMARY KEY,
+name TEXT NOT NULL,
+ts TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS tracking_points (
 user_id TEXT NOT NULL,

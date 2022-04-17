@@ -4,18 +4,37 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A==" crossorigin=""/>
+    <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
 
-    <script type="module" src="main.js"></script>
-
-    <title>Where is Simão?</title>
+    <title>osmand position tracker</title>
   </head>
   <body>
     <main class="container">
-      <h1>Where is Simão?</h1>
-    </main>
+      <h1>osmand position tracker</h1>
 
-    <div style="height:600px" id="map"></div>
+      <p>OsmAnd allows a user to update their location live, by sending the current position periodically to a remote server.</p>
+
+      <p>This app can receive that information and display the current position of the user on a map. This way you can share your live location by just sending a simple link to another person</p>.
+
+      <p>No tracking, no non-sense javascript, no bullshit features, no warranty.</p>
+
+      <form method="POST" action="users">
+        <!-- Grid -->
+        <div class="grid">
+
+          <!-- Markup example 1: input is inside label -->
+          <label for="username">
+            Choose your username
+            <input type="text" id="username" name="username" placeholder="" required>
+          </label>
+
+        </div>
+
+        <!-- Button -->
+        <button type="submit">Submit</button>
+
+      </form>
+    </main>
 
   </body>
 </html>

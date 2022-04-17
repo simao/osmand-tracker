@@ -90,8 +90,16 @@ async function fetchMore(map, settings) {
 }
 
 document.addEventListener("DOMContentLoaded", async (_event) => {
+  const params = new URLSearchParams(window.location.search);
+
+  const userId = params.get("user_id");
+
+  // "01FVFR45DD0Y2DG9TNFV8X5576",
+
+  // TODO: Throw if userId is null
+
   var settings = {
-    userId: "01FVFR45DD0Y2DG9TNFV8X5576",
+    userId: userId,
     laterThan: 0,
     lastCircle: undefined
   };
