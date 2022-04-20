@@ -72,20 +72,18 @@ async fn new_user(mut req: Request<State>) -> tide::Result {
     let record_key = RecordKey(Ulid::new());
     let user: UserForm = req.body_form().await?;
 
+    // TODO: Pass should be hashed
+
     sqlx::query("insert into users (id, name, record_key, ts) values ($1, $2, $3, $4)")
         .bind(user_id.to_string())
         .bind(record_key.to_string())
-        .bind(user.username)
+        .bind(&user.username)
         .bind(chrono::Utc::now())
         .execute(&req.state().db).await?;
 
-    let location = format!("show?user_id={}", user_id.to_string());
-
-    // TODO: how to supply record key to user?
-
-    let resp = tide::Redirect::new(location);
-
-    Ok(resp.into())
+    // TODO: Should use POST => GET, but no simple way to pass password
+    let tera = &req.state().tera;
+    tera.render_response("show.html", &tide_tera::context! { "user_id" => user_id.to_string(), "name" => user.username, "pass" => record_key.0.to_string() })
 }
 
 
@@ -131,6 +129,7 @@ async fn get_all(req: Request<State>) -> tide::Result {
     res.set_body(tide::Body::from_json(&response)?);
     Ok(res)
 }
+
 
 async fn show(req: Request<State>) -> tide::Result {
     let tera = &req.state().tera;
