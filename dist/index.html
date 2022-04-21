@@ -6,32 +6,47 @@
 
     <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
 
-    <title>osmand position tracker</title>
+    <title>OsmAnd Position Tracker</title>
   </head>
   <body>
     <main class="container">
-      <h1>osmand position tracker</h1>
+      <h1>OsmAnd Position Tracker</h1>
 
-      <p>OsmAnd allows a user to update their location live, by sending the current position periodically to a remote server.</p>
+      <p><a href="https://osmand.net/">OsmAnd</a> Android and iPhone apps allow a user to update their location live, by sending the current position periodically to a remote server.</p>
 
-      <p>This app can receive that information and display the current position of the user on a map. This way you can share your live location by just sending a simple link to another person</p>.
+      <p>This app can receive that information and display the current position of the user on a map. This way you can share your live location by just sending a simple link to another person.</p>
 
-      <p>No tracking, no non-sense javascript, no bullshit features, no warranty.</p>
+      <p>Privact friendly, no useless features, no warranty.</p>
 
       <form method="POST" action="users">
         <!-- Grid -->
         <div class="grid">
 
+          <div>&nbsp;</div>
+
           <!-- Markup example 1: input is inside label -->
           <label for="username">
-            Choose your username
-            <input type="text" id="username" name="username" placeholder="" required>
+            <input type="text" id="username" name="username" placeholder="username" required>
           </label>
+
+          <div>&nbsp;</div>
+
 
         </div>
 
-        <!-- Button -->
-        <button type="submit">Submit</button>
+
+        <div class="grid">
+
+          <div>&nbsp;</div>
+
+                <!-- Button -->
+                <button type="submit">Submit</button>
+
+
+          <div>&nbsp;</div>
+
+</div>
+
 
       </form>
     </main>
