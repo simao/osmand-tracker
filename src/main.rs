@@ -54,7 +54,7 @@ impl Display for RecordKey {
 pub struct TrackingPoint {
     user: Ulid,
     #[serde(skip_serializing)]
-    record_key: Option<RecordKey>,
+    pass: Option<RecordKey>,
     lat: f64,
     lon: f64,
     altitude: f64,
@@ -72,16 +72,18 @@ async fn new_user(mut req: Request<State>) -> tide::Result {
     let record_key = RecordKey(Ulid::new());
     let user: UserForm = req.body_form().await?;
 
-    // TODO: Pass should be hashed
+    let salt = b"ahv7Phoobaet8yohX1";
+    let config = argon2::Config::default();
+    let hash = argon2::hash_encoded(record_key.0.to_string().as_bytes(), salt, &config).unwrap();
 
-    sqlx::query("insert into users (id, name, record_key, ts) values ($1, $2, $3, $4)")
+    sqlx::query("insert into users (id, name, pass, ts) values ($1, $2, $3, $4)")
         .bind(user_id.to_string())
-        .bind(record_key.to_string())
         .bind(&user.username)
+        .bind(hash)
         .bind(chrono::Utc::now())
         .execute(&req.state().db).await?;
 
-    // TODO: Should use POST => GET, but no simple way to pass password
+    // TODO: Should use POST => GET, but no simple way to give password to user
     let tera = &req.state().tera;
     tera.render_response("show.html", &tide_tera::context! { "user_id" => user_id.to_string(), "name" => user.username, "pass" => record_key.0.to_string() })
 }
@@ -118,7 +120,7 @@ async fn get_all(req: Request<State>) -> tide::Result {
         .map(|r| {
             let id_str: String = r.get(0);
             let timestamp: DateTime<Utc> = r.get(7);
-            TrackingPoint { user: Ulid::from_str(&id_str).unwrap(), record_key: None, lat: r.get(1), lon: r.get(2), altitude: r.get(3), speed: r.get(4), hdop: r.get(5), bearing: r.get(6), utc_timestamp: Some(timestamp), timestamp: timestamp.timestamp_millis() }
+            TrackingPoint { user: Ulid::from_str(&id_str).unwrap(), pass: None, lat: r.get(1), lon: r.get(2), altitude: r.get(3), speed: r.get(4), hdop: r.get(5), bearing: r.get(6), utc_timestamp: Some(timestamp), timestamp: timestamp.timestamp_millis() }
         })
         .fetch_all(&req.state().db)
         .await?;
@@ -145,6 +147,31 @@ async fn show(req: Request<State>) -> tide::Result {
 }
 
 
+async fn validate_pass(db: &SqlitePool, user_id: Ulid, pass: String) -> Result<(), tide::Error> {
+    let hash: String = sqlx::query("select pass from users where id = $1")
+        .bind(user_id.to_string())
+        .map(|r| r.get(0))
+        .fetch_one(db)
+        .await
+        .map_err(|err| {
+            log::info!("could not retrieve stored hash for user {} : {}", user_id, err);
+            tide::Error::from_str(403, "bad user/password")
+        })?;
+
+    let matches = argon2::verify_encoded(&hash, pass.as_bytes())
+        .map_err(|err| {
+            log::info!("bad hash verify for user {} : {}", user_id, err);
+            tide::Error::from_str(403, "bad user/password")
+        }) ?;
+
+    if matches {
+        Ok(())
+    } else {
+        log::info!("pass does not match for user {}", user_id);
+        Err(tide::Error::from_str(403, "bad user/password"))
+    }
+}
+
 async fn record(req: Request<State>) -> tide::Result {
     let point: TrackingPoint = req.query()?;
 
@@ -152,7 +179,9 @@ async fn record(req: Request<State>) -> tide::Result {
 
     let now = Utc::now();
 
-    // TODO: Verify record key, return 403
+    let db = &req.state().db;
+
+    validate_pass(db, point.user, point.pass.unwrap().0.to_string()).await?;
 
     sqlx::query("insert into tracking_points (user_id, lat, lon, altitude, speed, hdop, ts, received_at) values ($1, $2, $3, $4, $5, $6, $7, $8)")
         .bind(point.user.to_string())
@@ -163,7 +192,7 @@ async fn record(req: Request<State>) -> tide::Result {
         .bind(point.hdop)
         .bind(date_time)
         .bind(now)
-        .execute(&req.state().db).await?;
+        .execute(db).await?;
 
     Ok(tide::Response::new(200))
 }
