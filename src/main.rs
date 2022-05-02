@@ -6,7 +6,6 @@ use tide::Request;
 use tide::prelude::*;
 use ulid::Ulid;
 use sqlx::prelude::*;
-use std::fmt::Display;
 use std::str::FromStr;
 use chrono::prelude::*;
 use tera::Tera;
@@ -15,7 +14,7 @@ use tide_tera::prelude::*;
 #[derive(Clone, Debug)]
 pub struct State {
     db: SqlitePool,
-    tera: Tera
+    tera: Tera,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -42,19 +41,10 @@ struct Response<T : serde::de::DeserializeOwned> {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-struct RecordKey(Ulid);
-
-impl Display for RecordKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.to_string())
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct TrackingPoint {
     user: Ulid,
     #[serde(skip_serializing)]
-    pass: Option<RecordKey>,
+    pass: Option<String>,
     lat: f64,
     lon: f64,
     altitude: f64,
@@ -66,15 +56,28 @@ pub struct TrackingPoint {
     utc_timestamp: Option<DateTime<Utc>>
 }
 
+
+use rand::distributions::{Alphanumeric, DistString};
+
+fn new_pass() -> (String, String) {
+    let mut r = rand::thread_rng();
+
+    let salt = Alphanumeric.sample_string(&mut r, 18);
+    let password = Alphanumeric.sample_string(&mut r, 20);
+
+    (salt, password)
+}
+
+
 // Just generate a valid id, doesn't do anything else
 async fn new_user(mut req: Request<State>) -> tide::Result {
     let user_id = Ulid::new();
-    let record_key = RecordKey(Ulid::new());
     let user: UserForm = req.body_form().await?;
 
-    let salt = b"ahv7Phoobaet8yohX1";
+    let (salt, pass) = new_pass();
+
     let config = argon2::Config::default();
-    let hash = argon2::hash_encoded(record_key.0.to_string().as_bytes(), salt, &config).unwrap();
+    let hash = argon2::hash_encoded(&pass.as_bytes(), &salt.as_bytes(), &config).unwrap();
 
     sqlx::query("insert into users (id, name, pass, ts) values ($1, $2, $3, $4)")
         .bind(user_id.to_string())
@@ -85,7 +88,7 @@ async fn new_user(mut req: Request<State>) -> tide::Result {
 
     // TODO: Should use POST => GET, but no simple way to give password to user
     let tera = &req.state().tera;
-    tera.render_response("show.html", &tide_tera::context! { "user_id" => user_id.to_string(), "name" => user.username, "pass" => record_key.0.to_string() })
+    tera.render_response("show.html", &tide_tera::context! { "user_id" => user_id.to_string(), "name" => user.username, "pass" => pass })
 }
 
 
@@ -147,7 +150,13 @@ async fn show(req: Request<State>) -> tide::Result {
 }
 
 
-async fn validate_pass(db: &SqlitePool, user_id: Ulid, pass: String) -> Result<(), tide::Error> {
+async fn validate_pass(db: &SqlitePool, user_id: Ulid, pass: Option<String>) -> Result<(), tide::Error> {
+    if pass.is_none() {
+        return Err(tide::Error::from_str(403, "bad user/password"));
+    }
+
+    let pass = pass.unwrap();
+
     let hash: String = sqlx::query("select pass from users where id = $1")
         .bind(user_id.to_string())
         .map(|r| r.get(0))
@@ -174,14 +183,11 @@ async fn validate_pass(db: &SqlitePool, user_id: Ulid, pass: String) -> Result<(
 
 async fn record(req: Request<State>) -> tide::Result {
     let point: TrackingPoint = req.query()?;
-
     let date_time = Utc.timestamp_millis(point.timestamp);
-
     let now = Utc::now();
-
     let db = &req.state().db;
 
-    validate_pass(db, point.user, point.pass.unwrap().0.to_string()).await?;
+    validate_pass(db, point.user, point.pass).await?;
 
     sqlx::query("insert into tracking_points (user_id, lat, lon, altitude, speed, hdop, ts, received_at) values ($1, $2, $3, $4, $5, $6, $7, $8)")
         .bind(point.user.to_string())
