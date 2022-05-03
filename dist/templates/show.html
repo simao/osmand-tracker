@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A==" crossorigin=""/>
+
+    <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
+
+    <script type="module" src="main.js"></script>
+
+    <title>Where is {{ name }}?</title>
+  </head>
+
+  <body>
+    <main class="container">
+      <h1><data id="user_id" value="{{ user_id }}">Where is {{ name }}?</data></h1>
+
+      {% if pass %}
+        <p>Set OsmAnd to send live tracking to: <pre>https://0io.eu/osmand-tracker/record?user={{ user_id }}&pass={{ pass }}&lat={0}&lon={1}&timestamp={2}&hdop={3}&altitude={4}&speed={5}&bearing={6}</pre></p>
+
+        <p><mark>This link will not be shown again</mark></p>
+      {% endif %}
+
+      <p>Share <a href="/show?user_id={{ user_id }}">this link</a> to share this live location</p>
+
+      <div style="height:400px;width:90%" id="map"></div>
+    </main>
+  </body>
+</html>

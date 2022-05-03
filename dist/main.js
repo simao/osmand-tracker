@@ -92,9 +92,14 @@ async function fetchMore(map, settings) {
 document.addEventListener("DOMContentLoaded", async (_event) => {
   const params = new URLSearchParams(window.location.search);
 
-  const userId = params.get("user_id");
+  var userIdElem = document.getElementById("user_id");
+  var userId;
 
-  // "01FVFR45DD0Y2DG9TNFV8X5576",
+  if (userIdElem && userIdElem.value) {
+    userId = userIdElem.value;
+  } else {
+    userId = params.get("user_id");
+  }
 
   // TODO: Throw if userId is null
 

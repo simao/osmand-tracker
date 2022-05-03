@@ -62,7 +62,7 @@ use rand::distributions::{Alphanumeric, DistString};
 fn new_pass() -> (String, String) {
     let mut r = rand::thread_rng();
 
-    let salt = Alphanumeric.sample_string(&mut r, 18);
+    let salt = Alphanumeric.sample_string(&mut r, 16);
     let password = Alphanumeric.sample_string(&mut r, 20);
 
     (salt, password)
