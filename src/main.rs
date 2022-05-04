@@ -86,7 +86,7 @@ async fn new_user(mut req: Request<State>) -> tide::Result {
         .bind(chrono::Utc::now())
         .execute(&req.state().db).await?;
 
-    // TODO: Should use POST => GET, but no simple way to give password to user
+    // Should use POST => GET, but no simple way to give password to user
     let tera = &req.state().tera;
     tera.render_response("show.html", &tide_tera::context! { "user_id" => user_id.to_string(), "name" => user.username, "pass" => pass })
 }
@@ -140,7 +140,6 @@ async fn show(req: Request<State>) -> tide::Result {
     let tera = &req.state().tera;
     let id = req.query::<UserIdGetParams>()?.user_id;
 
-    // TODO: Index?
     let name: Option<String> = sqlx::query("select name from users where id = $1")
         .bind(id.to_string())
         .map(|r| r.get(0))

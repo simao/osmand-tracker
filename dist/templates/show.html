@@ -15,7 +15,7 @@
 
   <body>
     <main class="container">
-      <h1><data id="user_id" value="{{ user_id }}">Where is {{ name }}?</data></h1>
+      <h1>Where is<data id="user_id" value="{{ user_id }}">{{ name }}?</data></h1>
 
       {% if pass %}
         <p>Set OsmAnd to send live tracking to: <pre>https://0io.eu/osmand-tracker/record?user={{ user_id }}&pass={{ pass }}&lat={0}&lon={1}&timestamp={2}&hdop={3}&altitude={4}&speed={5}&bearing={6}</pre></p>
